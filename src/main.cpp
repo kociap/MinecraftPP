@@ -100,9 +100,6 @@ public:
 		glUniformMatrix4fv(glGetUniformLocation(id, name), 1, false, glm::value_ptr(mat));
 	}
 };
-bool compare_floats(const float x, const float y, const float epsilon) {
-	return std::abs(x - y) < epsilon;
-}
 struct camera {
 	static constexpr float speed = 4.f;
 	static constexpr float sensitivity = 10.0e-2f;
@@ -207,10 +204,13 @@ struct texture {
 		}
 	}
 };
-
+struct vec3 {
+	int x, y, z;
+};
 struct chunk {
 	unsigned vao{}, vbo{}, fvbo{};
-	std::vector<glm::vec3> offsets{}, foffsets{};
+	vec3 pos;
+	std::vector<vec3> offsets{}, foffsets{};
 	constexpr static std::array<vertex, 36> cube{{
 		{{ -0.5f, -0.5f, -0.5f }, { 0.0f, 0.0f }},
 		{{ 0.5f, -0.5f, -0.5f }, { 1.0f, 0.0f }},
@@ -254,7 +254,9 @@ struct chunk {
 		{{ -0.5f, 0.5f, 0.5f }, { 0.0f, 0.0f }},
 		{{ -0.5f, 0.5f, -0.5f }, { 0.0f, 1.0f }}
 	}};
-	explicit chunk(std::vector<glm::vec3> offsets) : offsets(std::move(offsets)) {
+	explicit chunk(std::vector<vec3> offsets, const vec3 pos)
+	: offsets(std::move(offsets)),
+	pos(pos) {
 		glGenVertexArrays(1, &vao);
 		glGenBuffers(1, &vbo);
 		glGenBuffers(1, &fvbo);
@@ -270,13 +272,10 @@ struct chunk {
 		trim();
 	}
 	chunk() = default;
-	std::optional<std::reference_wrapper<glm::vec3>> cube_at(const float x, const float y, const float z) {
-		for (auto& c : offsets) {
-			if (compare_floats(c.x, x, 0.0001f) &&
-				compare_floats(c.y, y, 0.0001f) &&
-				compare_floats(c.z, z, 0.0001f)) {
-				return { c };
-			}
+	std::optional<std::reference_wrapper<vec3>> cube_at(const int x, const int y, const int z) {
+		auto idx = x * 256 + y * 16 + z;
+		if (idx >= 0 && idx < 4096) {
+			return offsets[idx];
 		}
 		return {};
 	}
@@ -292,21 +291,25 @@ struct chunk {
 	}
 
 	void trim() {
-		for (const auto& c : offsets) {
-			if (cube_at(c.x + 1, c.y, c.z) == std::nullopt ||
-				cube_at(c.x - 1, c.y, c.z) == std::nullopt ||
-				cube_at(c.x, c.y + 1, c.z) == std::nullopt ||
-				cube_at(c.x, c.y - 1, c.z) == std::nullopt ||
-				cube_at(c.x, c.y, c.z + 1) == std::nullopt ||
-				cube_at(c.x, c.y, c.z - 1) == std::nullopt) {
-				foffsets.emplace_back(c);
+		for (auto x = 0; x < 16; ++x) {
+			for (auto y = 0; y < 16; ++y) {
+				for (auto z = 0; z < 16; ++z) {
+					if (cube_at(x + 1, y, z) == std::nullopt ||
+						cube_at(x - 1, y, z) == std::nullopt ||
+						cube_at(x, y + 1, z) == std::nullopt ||
+						cube_at(x, y - 1, z) == std::nullopt ||
+						cube_at(x, y, z + 1) == std::nullopt ||
+						cube_at(x, y, z - 1) == std::nullopt) {
+						foffsets.emplace_back(vec3{ x, y, z });
+					}
+				}
 			}
 		}
 		glBindVertexArray(vao);
 		glBindBuffer(GL_ARRAY_BUFFER, fvbo);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * foffsets.size(), foffsets.data(), GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vec3) * foffsets.size(), foffsets.data(), GL_STATIC_DRAW);
 		glEnableVertexAttribArray(2);
-		glVertexAttribPointer(2, 3, GL_FLOAT, false, sizeof(glm::vec3), 0);
+		glVertexAttribPointer(2, 3, GL_INT, false, sizeof(vec3), 0);
 		glVertexAttribDivisor(2, 1);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
@@ -381,18 +384,19 @@ public:
 		s.use();
 		s.set_mat4("projection", glm::perspective(glm::radians(60.f), float(width) / float(height), 0.1f, 100.f));
 		s.set_mat4("model", glm::mat4(1.0f));
-		std::vector<texture> tx_vec;
-		tx_vec.emplace_back("../resources/textures/dirt.jpg");
-		std::vector<glm::vec3> offsets{};
+		std::vector<texture> tx_vec{
+			{ "../resources/textures/dirt.jpg" }
+		};
+		std::vector<vec3> offsets{};
 		for (int i = 0; i < 16; ++i) {
 			for (int j = 0; j < 16; ++j) {
 				for (int k = 0; k < 16; ++k) {
-					offsets.emplace_back(i + 5, j, k);
+					offsets.emplace_back(vec3{ i, j, k });
 				}
 			}
 		}
 		std::vector<chunk> chunks{
-			chunk{ std::move(offsets) }
+			chunk{ std::move(offsets), { 0, 0, 0 } }
 		};
 		static int nframes = 0;
 		while (!glfwWindowShouldClose(window)) {
