@@ -10,5 +10,5 @@ out vec2 tx_coords;
 
 void main() {
     tx_coords = itx_coords;
-    gl_Position = pv_mat * model * vec4(ivtx.xyz + offsets.xyz, 1.0f);
+    gl_Position = pv_mat * model * vec4(ivtx.xyz + offsets.xyz, 1.0);
 }
