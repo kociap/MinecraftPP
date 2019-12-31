@@ -375,19 +375,8 @@ Ty random(const Ty Min = std::numeric_limits<Ty>::min(), const Ty Max = std::num
 		return os;
 	}
 // Might change parsing so that it resembles python more.
-#ifdef _MSC_VER
-#define forceinline __forceinline
-#elif defined(__GNUC__)
-#define forceinline inline __attribute__((__always_inline__))
-#elif defined(__clang__)
-	#if __has_attribute(__always_inline__)
-#define forceinline inline __attribute__((__always_inline__))
-	#else
-#define forceinline inline
-	#endif // __CLANG__
-#else
-#define forceinline inline
-#endif // _MSC_VER
+
+
 // START class validate user input
 	inline class check_istream {
 		std::istream& is{ std::cin };
