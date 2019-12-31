@@ -52,10 +52,6 @@
 
 namespace util {
 // C++ Ver Detect,Cross-Compiler
-#ifdef _MSC_VER
-	#include <concepts>
-	#include <compare>
-#endif
 #if _HAS_CXX17
 #define DEF_CXX_17
 #elif __cplusplus >= 201703L
