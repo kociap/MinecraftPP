@@ -19,6 +19,10 @@ include_directories(include/glfw/include/GLFW)
 include_directories(include/imgui/imgui_impl)
 include_directories(/usr/include/freetype2)
 
+execute_process(COMMAND ${GIT_EXECUTABLE} submodule update --init --recursive
+        WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+        RESULT_VARIABLE UPDATE_SUBMODULES_RESULT)
+
 add_executable(MinecraftPP
         include/util.hpp
         include/glad/glad.h
