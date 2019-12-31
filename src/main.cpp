@@ -7,18 +7,13 @@
 #define GLEW_STATIC
 #define STB_IMAGE_IMPLEMENTATION
 
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
+#include "glad/glad.h"
+#include "GLFW/glfw3.h"
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <stb/stb_image.h>
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
 #include <fmt/format.h>
-#include <freetype2/ft2build.h>
-#include <freetype2/freetype/freetype.h>
 
 auto width = 1280;
 auto height = 720;
@@ -216,7 +211,6 @@ struct block {
 };
 struct chunk {
 	unsigned vao{}, vbo{}, fvbo{};
-	vec3 pos;
 	std::vector<block> offsets{}, foffsets{};
 	constexpr static std::array<vertex, 36> cube{{
 		{{ -0.5f, -0.5f, -0.5f }, { 0.0f, 0.0f }},
@@ -261,9 +255,8 @@ struct chunk {
 		{{ -0.5f, 0.5f, 0.5f }, { 0.0f, 0.0f }},
 		{{ -0.5f, 0.5f, -0.5f }, { 0.0f, 1.0f }}
 	}};
-	explicit chunk(std::vector<block> offsets, const vec3 pos)
-	: offsets(std::move(offsets)),
-	pos(pos) {
+	explicit chunk(std::vector<block> offsets)
+	: offsets(std::move(offsets)) {
 		glGenVertexArrays(1, &vao);
 		glGenBuffers(1, &vbo);
 		glGenBuffers(1, &fvbo);
@@ -311,6 +304,56 @@ struct chunk {
 				foffsets.emplace_back(block);
 			}
 		}
+		/*for (const auto& c : offsets) {
+			if (std::find_if(offsets.begin(), offsets.end(), [&c](const block& v) {
+				return c.pos.x + 1 == v.pos.x &&
+					   c.pos.y == v.pos.y &&
+					   c.pos.z == v.pos.z;
+			}) == offsets.end()) {
+				foffsets.emplace_back(c);
+				continue;
+			}
+			if (std::find_if(offsets.begin(), offsets.end(), [&c](const block& v) {
+				return c.pos.x - 1 == v.pos.x &&
+					   c.pos.y == v.pos.y &&
+					   c.pos.z == v.pos.z;
+			}) == offsets.end()) {
+				foffsets.emplace_back(c);
+				continue;
+			}
+			if (std::find_if(offsets.begin(), offsets.end(), [&c](const block& v) {
+				return c.pos.x == v.pos.x &&
+					   c.pos.y + 1 == v.pos.y &&
+					   c.pos.z == v.pos.z;
+			}) == offsets.end()) {
+				foffsets.emplace_back(c);
+				continue;
+			}
+			if (std::find_if(offsets.begin(), offsets.end(), [&c](const block& v) {
+				return c.pos.x == v.pos.x &&
+					   c.pos.y - 1 == v.pos.y &&
+					   c.pos.z == v.pos.z;
+			}) == offsets.end()) {
+				foffsets.emplace_back(c);
+				continue;
+			}
+			if (std::find_if(offsets.begin(), offsets.end(), [&c](const block& v) {
+				return c.pos.x == v.pos.x &&
+					   c.pos.y == v.pos.y &&
+					   c.pos.z + 1 == v.pos.z;
+			}) == offsets.end()) {
+				foffsets.emplace_back(c);
+				continue;
+			}
+			if (std::find_if(offsets.begin(), offsets.end(), [&c](const block& v) {
+				return c.pos.x == v.pos.x &&
+					   c.pos.y == v.pos.y &&
+					   c.pos.z - 1 == v.pos.z;
+			}) == offsets.end()) {
+				foffsets.emplace_back(c);
+				continue;
+			}
+		}*/
 		glBindVertexArray(vao);
 		glBindBuffer(GL_ARRAY_BUFFER, fvbo);
 		glBufferData(GL_ARRAY_BUFFER, sizeof(block) * foffsets.size(), foffsets.data(), GL_STATIC_DRAW);
@@ -405,7 +448,7 @@ public:
 		std::vector<texture> tx_vec{
 			{ "../resources/textures/dirt.jpg" }
 		};
-		std::vector<block> offsets{};
+		std::vector<block> offsets{}, offsets2{};
 		for (int i = 0; i < 16; ++i) {
 			for (int j = 0; j < 16; ++j) {
 				for (int k = 0; k < 16; ++k) {
@@ -413,8 +456,16 @@ public:
 				}
 			}
 		}
+		for (int i = 16; i < 32; ++i) {
+			for (int j = 0; j < 16; ++j) {
+				for (int k = 0; k < 16; ++k) {
+					offsets2.emplace_back(block{ vec3{ i, j, k }, block::type::dirt });
+				}
+			}
+		}
 		std::vector<chunk> chunks{
-			chunk{ { std::move(offsets) }, { 0, 0, 0 } }
+			chunk{ std::move(offsets) },
+			chunk{ std::move(offsets2) }
 		};
 		static int nframes = 0;
 		while (!glfwWindowShouldClose(window)) {
