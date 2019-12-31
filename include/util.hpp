@@ -50,44 +50,17 @@
 #include <queue>
 #include <bitset>
 
-namespace util {
+#include <types.hpp>
+#include <intrinsics.hpp>
+
+namespace minecraftpp::util {
 // C++ Ver Detect,Cross-Compiler
 #if _HAS_CXX17
 #define DEF_CXX_17
 #elif __cplusplus >= 201703L
 #define DEF_CXX_17
 #endif
-#if 2 + 2 == 5
-#error evacuate asap, maths has broken
-#endif
-#ifdef _MSC_VER
-	#define assume(Cond) __assume(Cond)
-#define unreachable() __assume(0)
-#elif defined(__clang__)
-#define assume(Cond) __builtin_assume(Cond)
-#define unreachable() __builtin_unreachable()
-#else
-	#define assume(Cond) ((Cond) ? static_cast<void>(0) : __builtin_unreachable())
-#define unreachable() __builtin_unreachable()
-#endif
-#if OPT == 1
-#define UNREACHABLE() unreachable()
-#else
-#define UNREACHABLE() static_cast<void>(0)
-#endif
-// Utility types
-	using u8 = uint8_t;
-	using u16 = uint16_t;
-	using u32 = uint32_t;
-	using u64 = uint64_t;
-	using i8 = int8_t;
-	using i16 = int16_t;
-	using i32 = int32_t;
-	using i64 = int64_t;
-	using f32 = float;
-	using f64 = double;
-	using usize = size_t;
-	using isize = ssize_t;
+
 // START class dyn_array
 	template <typename Ty, class Al = std::allocator<Ty>>
 	class dyn_array {
