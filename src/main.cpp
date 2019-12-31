@@ -349,7 +349,7 @@ public:
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 		glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-		window = glfwCreateWindow(width = 1280, height = 720, "MinecraftPP", nullptr, nullptr);
+		window = glfwCreateWindow(width, height, "MinecraftPP", nullptr, nullptr);
 		if (!window) {
 			return -2;
 		}
