@@ -170,10 +170,6 @@ struct camera {
 		cam_up = glm::normalize(glm::cross(cam_right, cam_front));
 	}
 } static cam{};
-struct vertex {
-	glm::vec3 vtx;
-	glm::vec2 tx_coords;
-};
 struct texture {
 	unsigned id;
 	texture() = default;
@@ -203,6 +199,10 @@ struct texture {
 			assert(false);
 		}
 	}
+};
+struct vertex {
+	glm::vec3 vtx;
+	glm::vec2 tx_coords;
 };
 struct vec3 {
 	int x, y, z;
@@ -272,12 +272,9 @@ struct chunk {
 		trim();
 	}
 	chunk() = default;
-	std::optional<std::reference_wrapper<vec3>> cube_at(const int x, const int y, const int z) {
+	bool cube_at(const int x, const int y, const int z) {
 		auto idx = x * 256 + y * 16 + z;
-		if (idx >= 0 && idx < 4096) {
-			return offsets[idx];
-		}
-		return {};
+		return (((idx > 0) && (idx < 4096)) || (x > 0 && y > 0 && z > 0));
 	}
 	void draw(const texture& t, const shader& s) const {
 		glBindVertexArray(vao);
@@ -294,12 +291,12 @@ struct chunk {
 		for (auto x = 0; x < 16; ++x) {
 			for (auto y = 0; y < 16; ++y) {
 				for (auto z = 0; z < 16; ++z) {
-					if (cube_at(x + 1, y, z) == std::nullopt ||
-						cube_at(x - 1, y, z) == std::nullopt ||
-						cube_at(x, y + 1, z) == std::nullopt ||
-						cube_at(x, y - 1, z) == std::nullopt ||
-						cube_at(x, y, z + 1) == std::nullopt ||
-						cube_at(x, y, z - 1) == std::nullopt) {
+					if (cube_at(x + 1, y, z) ||
+						cube_at(x - 1, y, z) ||
+						cube_at(x, y + 1, z) ||
+						cube_at(x, y - 1, z) ||
+						cube_at(x, y, z + 1) ||
+						cube_at(x, y, z - 1)) {
 						foffsets.emplace_back(vec3{ x, y, z });
 					}
 				}
@@ -317,6 +314,7 @@ struct chunk {
 };
 class application {
 	GLFWwindow* window;
+	inline static bool cursor_captured = true;
 	inline static auto framebuffer_callback = [](GLFWwindow*, const int fwidth, const int fheight) {
 		glViewport(0, 0, width = fwidth, height = fheight);
 	};
@@ -333,6 +331,16 @@ class application {
 		lastX = xpos;
 		lastY = ypos;
 		cam.process(xoffset, yoffset);
+	};
+	inline static auto key_callback = [](GLFWwindow* w, int key, int scancode, int action, int mods) {
+		if (key == GLFW_KEY_P && action == GLFW_RELEASE) {
+			if (cursor_captured) {
+				glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+			} else {
+				glfwSetInputMode(w, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+			}
+			cursor_captured = !cursor_captured;
+		}
 	};
 	void init_imgui() const {
 		IMGUI_CHECKVERSION();
@@ -363,6 +371,7 @@ public:
 		glViewport(0, 0, width, height);
 		glfwSetFramebufferSizeCallback(window, framebuffer_callback);
 		glfwSetCursorPosCallback(window, mouse_callback);
+		glfwSetKeyCallback(window, key_callback);
 		glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 		glEnable(GL_DEPTH_TEST);
 		glEnable(GL_BLEND);
@@ -381,8 +390,8 @@ public:
 			"../resources/shaders/v_block.glsl",
 			"../resources/shaders/f_block.glsl"
 		};
+		auto proj = glm::perspective(glm::radians(60.f), float(width) / float(height), 0.1f, 100.f);
 		s.use();
-		s.set_mat4("projection", glm::perspective(glm::radians(60.f), float(width) / float(height), 0.1f, 100.f));
 		s.set_mat4("model", glm::mat4(1.0f));
 		std::vector<texture> tx_vec{
 			{ "../resources/textures/dirt.jpg" }
@@ -410,13 +419,15 @@ public:
 			delta_time = current_frame - last_frame;
 			last_frame = current_frame;
 			s.use();
-			s.set_mat4("view", cam.get_view_mat());
-			chunks[0].draw(tx_vec[0], s);
+			s.set_mat4("pv_mat", proj * cam.get_view_mat());
+			for (const auto& chunk : chunks) {
+				chunk.draw(tx_vec[0], s);
+			}
 			ImGui::SetNextWindowPos(ImVec2{ float(width) - 400.0f, 0 });
 			ImGui::SetNextWindowSize({ 400.0f, 0.0f });
 			ImGui::Begin("Debug info");
 			ImGui::Text("fps: %.2f, delta_time: %f, frame: %d\n"
-				"x: %.2f, y: %.2f, z: %.2f, is_moving: %s",
+			   "x: %.2f, y: %.2f, z: %.2f, is_moving: %s",
 				1 / delta_time, delta_time, nframes,
 				cam.cam_pos.x, cam.cam_pos.y, cam.cam_pos.z,
 				cam.has_moved() ? "true" : "false");
