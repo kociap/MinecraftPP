@@ -665,19 +665,7 @@ Ty random(const Ty Min = std::numeric_limits<Ty>::min(), const Ty Max = std::num
 	template <class Ty, class... Types>
 	constexpr bool is_any_of_v = std::disjunction_v<std::is_same<Ty, Types>...>;
 } // namespace util
-using util::u8;
-using util::u16;
-using util::u32;
-using util::u64;
-using util::i8;
-using util::i16;
-using util::i32;
-using util::i64;
-using util::f32;
-using util::f64;
-using util::usize;
-using util::isize;
-using util::operator <<;
+using minecraftpp::util::operator <<;
 struct Nil {
 	using Head = Nil;
 	using Tail = Nil;
