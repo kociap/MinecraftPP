@@ -20,8 +20,6 @@
 #include <freetype2/ft2build.h>
 #include <freetype2/freetype/freetype.h>
 
-using namespace std::literals;
-
 auto width = 1280;
 auto height = 720;
 double delta_time = 0;
@@ -30,56 +28,53 @@ double last_frame = 0;
 class shader {
 	unsigned id = 0;
 public:
-	template <typename ...Args,
-	    std::enable_if<sizeof...(Args) == 2 || sizeof...(Args) == 3>* = nullptr>
-	explicit shader(Args&& ...args) {
-		std::array<std::string, sizeof...(Args)> shaders{ args... };
-		std::ifstream f(shaders[0]);
+	explicit shader(const std::filesystem::path& vshader, const std::filesystem::path& fshader, const std::filesystem::path& gshader = {}) {
+		std::ifstream f(vshader);
 		auto temp = std::string{ std::istreambuf_iterator<char>{ f }, {}};
 		auto source = temp.c_str();
-		auto vshader = glCreateShader(GL_VERTEX_SHADER);
-		auto fshader = glCreateShader(GL_FRAGMENT_SHADER);
-		auto gshader = 0u;
+		auto vshaderi = glCreateShader(GL_VERTEX_SHADER);
+		auto fshaderi = glCreateShader(GL_FRAGMENT_SHADER);
+		auto gshaderi = 0u;
 		int success;
 		char ilog[512];
-		glShaderSource(vshader, 1, &source, nullptr);
-		glCompileShader(vshader);
-		glGetShaderiv(vshader, GL_COMPILE_STATUS, &success);
+		glShaderSource(vshaderi, 1, &source, nullptr);
+		glCompileShader(vshaderi);
+		glGetShaderiv(vshaderi, GL_COMPILE_STATUS, &success);
 		if (!success) {
-			glGetShaderInfoLog(vshader, 512, nullptr, ilog);
-			std::cout << "[Error] " << shaders[0] << " shader compilation failed\n" << ilog;
+			glGetShaderInfoLog(vshaderi, 512, nullptr, ilog);
+			std::cout << "[Error] " << vshader << " shader compilation failed\n" << ilog;
 			throw std::runtime_error("shader compilation failed");
 		}
 		f.close();
-		f.open(shaders[1]);
+		f.open(fshader);
 		temp = std::string{ std::istreambuf_iterator<char>{ f }, {}};
 		source = temp.c_str();
-		glShaderSource(fshader, 1, &source, nullptr);
-		glCompileShader(fshader);
-		glGetShaderiv(fshader, GL_COMPILE_STATUS, &success);
+		glShaderSource(fshaderi, 1, &source, nullptr);
+		glCompileShader(fshaderi);
+		glGetShaderiv(fshaderi, GL_COMPILE_STATUS, &success);
 		if (!success) {
-			glGetShaderInfoLog(fshader, 512, nullptr, ilog);
-			std::cout << "[Error] " << shaders[1] << " shader compilation failed\n" << ilog;
+			glGetShaderInfoLog(fshaderi, 512, nullptr, ilog);
+			std::cout << "[Error] " << fshader << " shader compilation failed\n" << ilog;
 			throw std::runtime_error("shader compilation failed");
 		}
 		id = glCreateProgram();
-		glAttachShader(id, vshader);
-		glAttachShader(id, fshader);
+		glAttachShader(id, vshaderi);
+		glAttachShader(id, fshaderi);
 		f.close();
-		if constexpr (shaders.size() == 3) {
-			gshader = glCreateShader(GL_GEOMETRY_SHADER);
-			f.open(shaders[2]);
+		if (!gshader.empty()) {
+			gshaderi = glCreateShader(GL_GEOMETRY_SHADER);
+			f.open(gshader);
 			temp = std::string{ std::istreambuf_iterator<char>{ f }, {}};
 			source = temp.c_str();
-			glShaderSource(gshader, 1, &source, nullptr);
-			glCompileShader(gshader);
-			glGetShaderiv(gshader, GL_COMPILE_STATUS, &success);
+			glShaderSource(gshaderi, 1, &source, nullptr);
+			glCompileShader(gshaderi);
+			glGetShaderiv(gshaderi, GL_COMPILE_STATUS, &success);
 			if (!success) {
-				glGetShaderInfoLog(gshader, 512, nullptr, ilog);
-				std::cout << "[Error] " << shaders[2] << " shader compilation failed\n" << ilog;
+				glGetShaderInfoLog(gshaderi, 512, nullptr, ilog);
+				std::cout << "[Error] " << gshader << " shader compilation failed\n" << ilog;
 				throw std::runtime_error("shader compilation failed");
 			}
-			glAttachShader(id, gshader);
+			glAttachShader(id, gshaderi);
 		}
 		glLinkProgram(id);
 		int g = 0;
@@ -87,10 +82,10 @@ public:
 		if (!g) {
 			throw std::runtime_error(fmt::format("Failed generating shader program, id: {}", id));
 		}
-		glDeleteShader(vshader);
-		glDeleteShader(fshader);
-		if constexpr (sizeof...(Args) == 3) {
-			glDeleteShader(gshader);
+		glDeleteShader(vshaderi);
+		glDeleteShader(fshaderi);
+		if (!gshader.empty()) {
+			glDeleteShader(gshaderi);
 		}
 	}
 	shader() = default;
@@ -105,13 +100,16 @@ public:
 		glUniformMatrix4fv(glGetUniformLocation(id, name), 1, false, glm::value_ptr(mat));
 	}
 };
+bool compare_floats(const float x, const float y, const float epsilon) {
+	return std::abs(x - y) < epsilon;
+}
 struct camera {
 	static constexpr float speed = 4.f;
 	static constexpr float sensitivity = 10.0e-2f;
 	double yaw;
 	double pitch;
-	glm::vec3 prec_pos = glm::vec3(0.0f, 0.0f, 3.0f);
-	glm::vec3 cam_pos = glm::vec3(0.0f, 0.0f, 3.0f);
+	glm::vec3 prec_pos = glm::vec3(-5.0f, 0.0f, 0.0f);
+	glm::vec3 cam_pos = glm::vec3(-5.0f, 0.0f, 0.0f);
 	glm::vec3 cam_front = glm::vec3(0.0f, 0.0f, -1.0f);
 	glm::vec3 cam_up = glm::vec3(0.0f, 1.0f, 0.0f);
 	glm::vec3 cam_right = glm::vec3();
@@ -151,16 +149,16 @@ struct camera {
 	auto get_view_mat() const {
 		return glm::lookAt(cam_pos, cam_pos + cam_front, cam_up);
 	}
-	void process(double xoffset, double yoffset, const GLboolean constrain_pitch = true) {
+	void process(double xoffset, double yoffset) {
 		xoffset *= sensitivity;
 		yoffset *= sensitivity;
 		yaw += xoffset;
 		pitch += yoffset;
-		if (constrain_pitch) {
-			if (pitch > 89.0f)
-				pitch = 89.0f;
-			if (pitch < -89.0f)
-				pitch = -89.0f;
+		if (pitch > 89.0f) {
+			pitch = 89.0f;
+		}
+		if (pitch < -89.0f) {
+			pitch = -89.0f;
 		}
 		update();
 	}
@@ -211,9 +209,8 @@ struct texture {
 };
 
 struct chunk {
-	unsigned vao{}, vbo{};
-	shader s;
-	std::vector<glm::vec3> offsets;
+	unsigned vao{}, vbo{}, fvbo{};
+	std::vector<glm::vec3> offsets{}, foffsets{};
 	constexpr static std::array<vertex, 36> cube{{
 		{{ -0.5f, -0.5f, -0.5f }, { 0.0f, 0.0f }},
 		{{ 0.5f, -0.5f, -0.5f }, { 1.0f, 0.0f }},
@@ -257,55 +254,66 @@ struct chunk {
 		{{ -0.5f, 0.5f, 0.5f }, { 0.0f, 0.0f }},
 		{{ -0.5f, 0.5f, -0.5f }, { 0.0f, 1.0f }}
 	}};
-	explicit chunk(const shader& s, std::vector<glm::vec3> offsets) :
-	s(s), offsets(std::move(offsets)) {
+	explicit chunk(std::vector<glm::vec3> offsets) : offsets(std::move(offsets)) {
 		glGenVertexArrays(1, &vao);
 		glGenBuffers(1, &vbo);
+		glGenBuffers(1, &fvbo);
 		glBindVertexArray(vao);
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vertex) * cube.size() + sizeof(glm::vec3) * this->offsets.size(), nullptr, GL_STATIC_DRAW);
-		glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(vertex) * cube.size(), cube.data());
-		glBufferSubData(GL_ARRAY_BUFFER, sizeof(vertex) * cube.size(), sizeof(glm::vec3) * this->offsets.size(), this->offsets.data());
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vertex) * cube.size(), cube.data(), GL_STATIC_DRAW);
 		glEnableVertexAttribArray(0);
 		glVertexAttribPointer(0, 3, GL_FLOAT, false, sizeof(vertex), reinterpret_cast<void*>(offsetof(vertex, vtx)));
 		glEnableVertexAttribArray(1);
 		glVertexAttribPointer(1, 2, GL_FLOAT, false, sizeof(vertex), reinterpret_cast<void*>(offsetof(vertex, tx_coords)));
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
+		trim();
+	}
+	chunk() = default;
+	std::optional<std::reference_wrapper<glm::vec3>> cube_at(const float x, const float y, const float z) {
+		for (auto& c : offsets) {
+			if (compare_floats(c.x, x, 0.0001f) &&
+				compare_floats(c.y, y, 0.0001f) &&
+				compare_floats(c.z, z, 0.0001f)) {
+				return { c };
+			}
+		}
+		return {};
+	}
+	void draw(const texture& t, const shader& s) const {
+		glBindVertexArray(vao);
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glBindBuffer(GL_ARRAY_BUFFER, fvbo);
+		glBindTexture(GL_TEXTURE_2D, t.id);
+		s.use();
+		glDrawArraysInstanced(GL_TRIANGLES, 0, cube.size(), foffsets.size());
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
+		glBindVertexArray(0);
+	}
+
+	void trim() {
+		for (const auto& c : offsets) {
+			if (cube_at(c.x + 1, c.y, c.z) == std::nullopt ||
+				cube_at(c.x - 1, c.y, c.z) == std::nullopt ||
+				cube_at(c.x, c.y + 1, c.z) == std::nullopt ||
+				cube_at(c.x, c.y - 1, c.z) == std::nullopt ||
+				cube_at(c.x, c.y, c.z + 1) == std::nullopt ||
+				cube_at(c.x, c.y, c.z - 1) == std::nullopt) {
+				foffsets.emplace_back(c);
+			}
+		}
+		glBindVertexArray(vao);
+		glBindBuffer(GL_ARRAY_BUFFER, fvbo);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * foffsets.size(), foffsets.data(), GL_STATIC_DRAW);
 		glEnableVertexAttribArray(2);
-		glVertexAttribPointer(2, 3, GL_FLOAT, false, sizeof(glm::vec3), reinterpret_cast<void*>(sizeof(vertex) * cube.size()));
+		glVertexAttribPointer(2, 3, GL_FLOAT, false, sizeof(glm::vec3), 0);
 		glVertexAttribDivisor(2, 1);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
-		this->s.use();
-		this->s.set_mat4("projection", glm::perspective(glm::radians(60.f), float(width) / float(height), 0.1f, 100.f));
-		this->s.set_mat4("view", glm::mat4(1.0f));
-		this->s.set_mat4("model", glm::mat4(1.0f));
-	}
-	chunk() = default;
-	void draw(const texture& t) const {
-		glBindVertexArray(vao);
-		glBindBuffer(GL_ARRAY_BUFFER, vbo);
-		s.use();
-		glBindTexture(GL_TEXTURE_2D, t.id);
-		glDrawArrays(GL_TRIANGLES, 0, cube.size());
-		glBindVertexArray(0);
-		glBindBuffer(GL_ARRAY_BUFFER, 0);
-	}
-	void set_projection(const glm::mat4& mat) {
-		s.use();
-		s.set_mat4("projection", mat);
-	}
-	void set_view(const glm::mat4& mat) {
-		s.use();
-		s.set_mat4("view", mat);
-	}
-	void set_model(const glm::mat4& mat) {
-		s.use();
-		s.set_mat4("model", mat);
 	}
 };
 class application {
 	GLFWwindow* window;
-	std::vector<texture> tx_vec;
 	inline static auto framebuffer_callback = [](GLFWwindow*, const int fwidth, const int fheight) {
 		glViewport(0, 0, width = fwidth, height = fheight);
 	};
@@ -321,7 +329,7 @@ class application {
 		double yoffset = lastY - ypos;
 		lastX = xpos;
 		lastY = ypos;
-		cam.process(xoffset, yoffset, true);
+		cam.process(xoffset, yoffset);
 	};
 	void init_imgui() const {
 		IMGUI_CHECKVERSION();
@@ -366,22 +374,51 @@ public:
 			glfwSetWindowShouldClose(window, true);
 	}
 	int run() {
-		tx_vec.emplace_back("../resources/textures/dirt.jpg");
-		chunk b{
-			shader{
-				"../resources/shaders/v_block.glsl",
-				"../resources/shaders/f_block.glsl"
-			},
-			{ glm::vec3{ 0.f, 0.f, -50.0f } }
+		shader s{
+			"../resources/shaders/v_block.glsl",
+			"../resources/shaders/f_block.glsl"
 		};
+		s.use();
+		s.set_mat4("projection", glm::perspective(glm::radians(60.f), float(width) / float(height), 0.1f, 100.f));
+		s.set_mat4("model", glm::mat4(1.0f));
+		std::vector<texture> tx_vec;
+		tx_vec.emplace_back("../resources/textures/dirt.jpg");
+		std::vector<glm::vec3> offsets{};
+		for (int i = 0; i < 16; ++i) {
+			for (int j = 0; j < 16; ++j) {
+				for (int k = 0; k < 16; ++k) {
+					offsets.emplace_back(i + 5, j, k);
+				}
+			}
+		}
+		std::vector<chunk> chunks{
+			chunk{ std::move(offsets) }
+		};
+		static int nframes = 0;
 		while (!glfwWindowShouldClose(window)) {
+			nframes++;
+			ImGui_ImplOpenGL3_NewFrame();
+			ImGui_ImplGlfw_NewFrame();
+			ImGui::NewFrame();
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 			glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
 			double current_frame = glfwGetTime();
 			delta_time = current_frame - last_frame;
 			last_frame = current_frame;
-			b.set_view(cam.get_view_mat());
-			b.draw(tx_vec[0]);
+			s.use();
+			s.set_mat4("view", cam.get_view_mat());
+			chunks[0].draw(tx_vec[0], s);
+			ImGui::SetNextWindowPos(ImVec2{ float(width) - 400.0f, 0 });
+			ImGui::SetNextWindowSize({ 400.0f, 0.0f });
+			ImGui::Begin("Debug info");
+			ImGui::Text("fps: %.2f, delta_time: %f, frame: %d\n"
+				"x: %.2f, y: %.2f, z: %.2f, is_moving: %s",
+				1 / delta_time, delta_time, nframes,
+				cam.cam_pos.x, cam.cam_pos.y, cam.cam_pos.z,
+				cam.has_moved() ? "true" : "false");
+			ImGui::End();
+			ImGui::Render();
+			ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 			process_input();
 			glfwPollEvents();
 			glfwSwapBuffers(window);
