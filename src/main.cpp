@@ -207,10 +207,17 @@ struct vertex {
 struct vec3 {
 	int x, y, z;
 };
+struct block {
+	vec3 pos;
+	enum class type {
+		dirt,
+		air
+	} type;
+};
 struct chunk {
 	unsigned vao{}, vbo{}, fvbo{};
 	vec3 pos;
-	std::vector<vec3> offsets{}, foffsets{};
+	std::vector<block> offsets{}, foffsets{};
 	constexpr static std::array<vertex, 36> cube{{
 		{{ -0.5f, -0.5f, -0.5f }, { 0.0f, 0.0f }},
 		{{ 0.5f, -0.5f, -0.5f }, { 1.0f, 0.0f }},
@@ -254,7 +261,7 @@ struct chunk {
 		{{ -0.5f, 0.5f, 0.5f }, { 0.0f, 0.0f }},
 		{{ -0.5f, 0.5f, -0.5f }, { 0.0f, 1.0f }}
 	}};
-	explicit chunk(std::vector<vec3> offsets, const vec3 pos)
+	explicit chunk(std::vector<block> offsets, const vec3 pos)
 	: offsets(std::move(offsets)),
 	pos(pos) {
 		glGenVertexArrays(1, &vao);
@@ -272,9 +279,21 @@ struct chunk {
 		trim();
 	}
 	chunk() = default;
-	bool cube_at(const int x, const int y, const int z) {
-		auto idx = x * 256 + y * 16 + z;
-		return (((idx > 0) && (idx < 4096)) || (x > 0 && y > 0 && z > 0));
+	block& cube_at(const int x, const int y, const int z) {
+		return offsets[x * 256 + y * 16 + z];
+	}
+	bool is_cube_visible(const block& b) {
+		auto cubes = std::vector{
+			cube_at(b.pos.x + 1, b.pos.y, b.pos.z),
+			cube_at(b.pos.x - 1, b.pos.y, b.pos.z),
+			cube_at(b.pos.x, b.pos.y + 1, b.pos.z),
+			cube_at(b.pos.x, b.pos.y - 1, b.pos.z),
+			cube_at(b.pos.x, b.pos.y, b.pos.z + 1),
+			cube_at(b.pos.x, b.pos.y, b.pos.z - 1)
+		};
+		return std::count_if(cubes.begin(), cubes.end(), [](const block& x) {
+			return x.type == block::type::dirt;
+		}) != 6;
 	}
 	void draw(const texture& t, const shader& s) const {
 		glBindVertexArray(vao);
@@ -286,27 +305,17 @@ struct chunk {
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
 	}
-
 	void trim() {
-		for (auto x = 0; x < 16; ++x) {
-			for (auto y = 0; y < 16; ++y) {
-				for (auto z = 0; z < 16; ++z) {
-					if (cube_at(x + 1, y, z) ||
-						cube_at(x - 1, y, z) ||
-						cube_at(x, y + 1, z) ||
-						cube_at(x, y - 1, z) ||
-						cube_at(x, y, z + 1) ||
-						cube_at(x, y, z - 1)) {
-						foffsets.emplace_back(vec3{ x, y, z });
-					}
-				}
+		for (const auto& block : offsets) {
+			if (!is_cube_visible(block)) {
+				foffsets.emplace_back(block);
 			}
 		}
 		glBindVertexArray(vao);
 		glBindBuffer(GL_ARRAY_BUFFER, fvbo);
-		glBufferData(GL_ARRAY_BUFFER, sizeof(vec3) * foffsets.size(), foffsets.data(), GL_STATIC_DRAW);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(block) * foffsets.size(), foffsets.data(), GL_STATIC_DRAW);
 		glEnableVertexAttribArray(2);
-		glVertexAttribPointer(2, 3, GL_INT, false, sizeof(vec3), 0);
+		glVertexAttribPointer(2, 3, GL_INT, false, sizeof(block), 0);
 		glVertexAttribDivisor(2, 1);
 		glBindBuffer(GL_ARRAY_BUFFER, 0);
 		glBindVertexArray(0);
@@ -396,16 +405,16 @@ public:
 		std::vector<texture> tx_vec{
 			{ "../resources/textures/dirt.jpg" }
 		};
-		std::vector<vec3> offsets{};
+		std::vector<block> offsets{};
 		for (int i = 0; i < 16; ++i) {
 			for (int j = 0; j < 16; ++j) {
 				for (int k = 0; k < 16; ++k) {
-					offsets.emplace_back(vec3{ i, j, k });
+					offsets.emplace_back(block{ vec3{ i, j, k }, block::type::dirt });
 				}
 			}
 		}
 		std::vector<chunk> chunks{
-			chunk{ std::move(offsets), { 0, 0, 0 } }
+			chunk{ { std::move(offsets) }, { 0, 0, 0 } }
 		};
 		static int nframes = 0;
 		while (!glfwWindowShouldClose(window)) {
