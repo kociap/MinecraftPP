@@ -9,11 +9,11 @@
 
 #include "glad/glad.h"
 #include "GLFW/glfw3.h"
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/type_ptr.hpp>
-#include <stb/stb_image.h>
-#include <fmt/format.h>
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
+#include "glm/gtc/type_ptr.hpp"
+#include "stb/stb_image.h"
+#include "fmt/format.h"
 
 auto width = 1280;
 auto height = 720;
@@ -300,7 +300,7 @@ struct chunk {
 	}
 	void trim() {
 		for (const auto& block : offsets) {
-			if (!is_cube_visible(block)) {
+			if (is_cube_visible(block)) {
 				foffsets.emplace_back(block);
 			}
 		}

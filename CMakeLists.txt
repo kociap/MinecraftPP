@@ -7,18 +7,22 @@ set(GLFW_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 
 add_subdirectory(include/glfw)
+add_subdirectory(include/fmt)
+add_subdirectory(include/glm)
 
 include_directories(include)
 include_directories(include/imgui)
 include_directories(include/glad)
+include_directories(include/glm)
+include_directories(include/stb)
 include_directories(include/glfw/include/GLFW)
 include_directories(include/imgui/imgui_impl)
 include_directories(/usr/include/freetype2)
 
 add_executable(MinecraftPP
         include/util.hpp
-        include/glad/glad.c
         include/glad/glad.h
+        include/glad/glad.c
         include/imgui/imconfig.h
         include/imgui/imgui.cpp
         include/imgui/imgui.h
